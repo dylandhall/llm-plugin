@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "LLM Summary Chat",
+  "version": "0.0.1",
+  "description": "Summarises or explains web pages and selected text using a local LLM.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabs"
+  ],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "index.html"
+  },
+  "options_page": "index.html?#/options",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self';"
+  }
+}

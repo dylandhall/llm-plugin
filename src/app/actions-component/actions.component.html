@@ -1,0 +1,28 @@
+<div style="width: 40rem;" class="popup-container">
+  <div class="messages">
+    @for (m of messages$ | async; track m.id) {
+      <div [ngClass]="{'is-chat': m.type === ChatType.Chat}">{{m.content}}</div>
+    }
+  </div>
+  <div>
+  @if (showChat()) {
+    <div style="width: 100%;" class="flex chat-input-area">
+      <mat-form-field style="width: 100%;">
+        <textarea matInput [formControl]="chatInput">
+
+        </textarea>
+      </mat-form-field>
+    </div>
+    <div class="flex-row buttons">
+      <button mat-stroked-button (click)="sendChat()">Send</button>
+      <button mat-stroked-button (click)="showChat.set(false)">Cancel</button>
+    </div>
+  } @else {
+    <div class="flex-row buttons">
+      <button mat-stroked-button (click)="showChat.set(true)">Chat</button>
+      <button mat-stroked-button (click)="send(DefaultPrompt.Explain)">Explain</button>
+      <button mat-stroked-button (click)="send(DefaultPrompt.Summarise)">Summarise</button>
+    </div>
+  }
+  </div>
+</div>
