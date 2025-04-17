@@ -3,6 +3,7 @@ import { appSettings } from './types';
 export const defaultAppSettings: appSettings = {
   baseUrl: 'http://localhost:1234/v1/chat/completions',
   model: 'google_gemma-3-12b-it',
+  lang: 'English',
   prompts: [
     {
       name: 'Summarise',

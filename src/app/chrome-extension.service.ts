@@ -118,15 +118,15 @@ export class ChromeExtensionService implements OnDestroy {
   }
 
   public sendSummariseContent(content: string, prompt: string): void {
-    this.sendPayload({payload: {content, lang:'English', promptName: prompt} as SummariseContentRequest, type: WorkerRequestType.SummariseContent});
+    this.sendPayload({payload: {content, promptName: prompt} as SummariseContentRequest, type: WorkerRequestType.SummariseContent});
   }
 
   public sendSummariseTab(tabId: number, prompt: string): void {
-    this.sendPayload({payload: {tabId, lang:'English', promptName: prompt} as SummariseTabRequest, type: WorkerRequestType.SummariseTab});
+    this.sendPayload({payload: {tabId, promptName: prompt} as SummariseTabRequest, type: WorkerRequestType.SummariseTab});
   }
 
   public sendQuestion(followUp: string): void {
-    this.sendPayload({payload: {lang:'English', content: followUp} as AskQuestionRequest, type: WorkerRequestType.AskQuestion});
+    this.sendPayload({payload: {content: followUp} as AskQuestionRequest, type: WorkerRequestType.AskQuestion});
   }
 
   public requestState(): void {
@@ -134,7 +134,6 @@ export class ChromeExtensionService implements OnDestroy {
   }
 
   private sendPayload<T extends WorkerRequestPayload>(message: WorkerRequest<T>):void {
-    // console.log('sendPayload', message);
     this.messages$.next({message});
   }
 
@@ -150,15 +149,4 @@ export class ChromeExtensionService implements OnDestroy {
     p?.onMessage.removeListener(this.handleMessage);
     this.onDisconnect$.next();
   };
-
-  // /** Get localized string */
-  // getI18nMessage(messageName: string, substitutions?: any): string {
-  //   if (!IS_EXTENSION_CONTEXT) return messageName; // Return key if not in extension
-  //   try {
-  //     return chrome.i18n.getMessage(messageName, substitutions);
-  //   } catch (e) {
-  //     console.error(`Error getting i18n message for key "${messageName}"`, e);
-  //     return messageName; // Return the key as fallback on error
-  //   }
-  // }
 }

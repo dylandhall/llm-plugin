@@ -134,11 +134,6 @@ async function saveStateToStorage(state: PopupState): Promise<void> {
       }
       await chrome.storage.sync.remove(toRemove);
     }
-
-    console.log(
-      `Saved state (${stateJson.length}B) → ${base64Compressed.length} chars, ` +
-      `${chunkCount} chunks)`
-    );
   } catch (err) {
     console.error('Error saving state:', err);
   }
@@ -284,7 +279,6 @@ async function hitApi(settings: appSettings, messages: ApiMessage[], isNewPrimar
         ]
   }));
 
-  console.log('sending messages', messages);
   const response = await fetch(settings.baseUrl, {
     method: "POST",
     headers: settings.token?.length ?? 0 > 0
@@ -371,14 +365,14 @@ async function hitApi(settings: appSettings, messages: ApiMessage[], isNewPrimar
   });
 }
 
-async function summariseUserContent(content: string, lang: string, systemPromptName: string | null = null): Promise<void> {
+async function summariseUserContent(content: string, systemPromptName: string | null = null): Promise<void> {
   try {
     if ((content?.length ?? 0) < 1) return;
 
     const settings = await getSettings();
     const prompt = settings.prompts.find(p => p.name === (systemPromptName ?? 'CustomContent')) ?? settings.prompts[0];
 
-    const systemCommand = prompt.prompt.replace(/{lang}/g, lang);
+    const systemCommand = prompt.prompt.replace(/{lang}/g, settings.lang);
 
     content = 'Please process this information according to your system prompt:\n\n' + content.trim();
 
@@ -391,7 +385,7 @@ async function summariseUserContent(content: string, lang: string, systemPromptN
   }
 }
 
-async function summariseTabContent(tabId: number, lang: string, promptName?: string): Promise<void> {
+async function summariseTabContent(tabId: number, promptName?: string): Promise<void> {
   try {
     const settings = await getSettings();
     const prompt = settings.prompts.find(p => p.name === promptName) ?? settings.prompts[0];
@@ -399,7 +393,7 @@ async function summariseTabContent(tabId: number, lang: string, promptName?: str
     let content = await extractTabContent(tabId);
     if ((content?.trim().length ?? 0) < 1) return;
 
-    const systemCommand = prompt.prompt.replace(/{lang}/g, lang);
+    const systemCommand = prompt.prompt.replace(/{lang}/g, settings.lang);
 
     content = 'Please process this information according to your system prompt:\n\n' + content.trim();
 
@@ -444,7 +438,6 @@ if (IS_EXTENSION_CONTEXT) {
     takeUntil(suspendEvent$),
   ).subscribe(async s => {
     try {
-      console.log('saving state',s);
       await saveStateToStorage(s);
     } catch (e) {
       console.error('error saving state', e);
@@ -460,7 +453,7 @@ messages$.pipe(
   takeUntil(suspendEvent$),
 ).subscribe(async v => {
   try {
-    await summariseUserContent(v.content, v.lang);
+    await summariseUserContent(v.content);
   } catch (e) {
     console.error(e);
   }
@@ -472,7 +465,7 @@ messages$.pipe(
   catchError((e) => of(null)),
   filter(v => v != null),
   takeUntil(suspendEvent$),
-).subscribe(v => summariseTabContent(v.tabId, v.lang, v.promptName));
+).subscribe(v => summariseTabContent(v.tabId, v.promptName));
 
 messages$.pipe(
   filter(m => m.type == WorkerRequestType.AskQuestion),
@@ -483,10 +476,10 @@ messages$.pipe(
   withLatestFrom(currentState$),
   filter(([,s]) => (s.apiMessages?.length ?? 0) > 1),
   takeUntil(suspendEvent$),
-).subscribe(async ([{content, lang},state]) => {
+).subscribe(async ([{content},state]) => {
   const settings = await getSettings();
 
-  const newSystemPrompt = (settings.prompts.find(p => p.name === DefaultPrompt.CustomContent)?.prompt ?? settings.prompts[0]?.prompt ?? '').replace(/{lang}/g, lang);
+  const newSystemPrompt = (settings.prompts.find(p => p.name === DefaultPrompt.CustomContent)?.prompt ?? settings.prompts[0]?.prompt ?? '').replace(/{lang}/g, settings.lang);
 
   const messages: ApiMessage[] =
     [
@@ -546,10 +539,9 @@ if (IS_EXTENSION_CONTEXT) {
     if (port.name !== PORT_NAME) return;
     popupPort = port;
     port.onMessage.addListener((message) => {
-      console.log('message listener', message);
       messages$.next(message)
     });
-    port.onDisconnect.addListener(() => console.log('disconnect'));
+    // port.onDisconnect.addListener(() => console.log('disconnect'));
   });
 
   chrome.runtime.onSuspend.addListener(() => {

@@ -14,7 +14,12 @@
     "type": "module"
   },
   "action": {
-    "default_popup": "index.html"
+    "default_popup": "index.html",
+    "default_icon": {
+      "16": "icon-16.png",
+      "48": "icon-48.png",
+      "128": "icon-128.png"
+    }
   },
   "options_page": "index.html?#/options",
   "content_security_policy": {

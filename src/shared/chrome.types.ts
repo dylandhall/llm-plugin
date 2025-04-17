@@ -20,19 +20,16 @@ export interface SummariseContentRequest extends WorkerRequestPayload {
   promptName?: string;
   userPrompt?: string;
   content: string;
-  lang: string;
 }
 
 export interface SummariseTabRequest extends WorkerRequestPayload {
   promptName?: string;
   userPrompt?: string;
   tabId: number;
-  lang: string;
 }
 
 export interface AskQuestionRequest extends WorkerRequestPayload {
   content: string;
-  lang: string;
 }
 
 export enum WorkerRequestType {

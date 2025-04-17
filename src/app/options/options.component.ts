@@ -51,6 +51,8 @@ export class OptionsComponent implements OnInit {
   settingsForm: FormGroup = this.formBuilder.group({
     baseUrl: ['', Validators.required],
     model: ['', Validators.required],
+    lang: ['', Validators.required],
+    token: [],
     prompts: this.formBuilder.array([])
   });
 
@@ -67,7 +69,9 @@ export class OptionsComponent implements OnInit {
 
     this.settingsForm.patchValue({
       baseUrl: settings.baseUrl,
-      model: settings.model
+      model: settings.model,
+      lang: settings.lang,
+      token: settings.token,
     });
 
     while (this.promptsArray.length) {
@@ -108,7 +112,9 @@ export class OptionsComponent implements OnInit {
   resetToDefaults() {
     this.settingsForm.patchValue({
       baseUrl: defaultAppSettings.baseUrl,
-      model: defaultAppSettings.model
+      model: defaultAppSettings.model,
+      lang: defaultAppSettings.lang,
+      token: defaultAppSettings.token,
     });
 
     // Clear existing prompts

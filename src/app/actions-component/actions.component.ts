@@ -101,7 +101,7 @@ export class ActionsComponent implements OnInit {
     ).subscribe(() => this.scrollToBottom());
 
     // unsure if needed, but in case the background isn't ready when i first request the state
-    timer(500).pipe(
+    timer(100).pipe(
       startWith(0),
       takeUntil(this.messages$.pipe(skip(1), takeUntilDestroyed(), take(1))),
       takeUntilDestroyed(),
@@ -128,9 +128,8 @@ export class ActionsComponent implements OnInit {
 
     chrome.scripting.executeScript(
       { target: { tabId: tab.id }, func: () => window.getSelection()?.toString() ?? '' }, (selection) => {
-        console.log('selection', selection);
         try {
-          if (chrome.runtime.lastError) throw new Error(chrome.runtime.lastError.message || "Script execution failed.");
+          if (chrome.runtime.lastError) throw new Error(chrome.runtime.lastError.message ?? "Script error");
 
           const selectedText = selection?.[0]?.result?.trim() ?? '';
           if (selectedText.length > 0){
