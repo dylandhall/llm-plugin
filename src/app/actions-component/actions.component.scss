@@ -1,4 +1,5 @@
 .popup-container{
+  font-size: medium;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -19,6 +20,8 @@
     .is-chat {
       border-radius: 10px;
       border: 1px solid aqua;
+      margin: 4px;
+      padding: 0.8rem;
     }
   }
 }
@@ -33,4 +36,8 @@
 }
 .chat-input-area {
   flex-shrink: 0;
+}
+.preview {
+  font: unset;
+  text-wrap: wrap;
 }

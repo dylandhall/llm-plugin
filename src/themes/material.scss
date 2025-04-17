@@ -3,7 +3,7 @@
 html {
   color-scheme: light dark;
   @include mat.theme((
-    color: mat.$cyan-palette,
+    color: mat.$azure-palette,
     typography: Roboto,
     density: 0
   ));

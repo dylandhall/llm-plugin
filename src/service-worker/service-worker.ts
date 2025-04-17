@@ -1,3 +1,4 @@
+import MarkdownIt from 'markdown-it';
 import {
   BehaviorSubject,
   catchError,
@@ -7,19 +8,21 @@ import {
   filter,
   from,
   map,
-  Observable,
   of,
   scan,
   startWith,
   Subject,
   takeUntil,
-  throwError,
+  throttleTime,
   withLatestFrom
 } from 'rxjs';
 import {
   ApiMessage,
+  AskQuestionRequest,
+  ChatMessage,
   ChatMessageState,
   ChatType,
+  DefaultPrompt,
   PluginState,
   PopupMessage,
   PopupMessagePayload,
@@ -46,10 +49,16 @@ interface StateUpdate<StateType> {
   updateObject?: StateType;
 }
 
+const suspendEvent$ = new Subject<void>();
 const currentState$ = new BehaviorSubject<PopupState>(getDefaultState());
 const stateUpdates$ = new Subject<StateUpdate<PopupState>>();
 const messages$ = new Subject<WorkerRequest<WorkerRequestPayload>>();
-currentState$.subscribe(console.log);
+const markdownProcessor = new MarkdownIt({
+  html: false,
+  breaks: true,
+  linkify: true
+});
+
 let popupPort: Port | null = null;
 
 function getDefaultState() : PopupState {
@@ -63,15 +72,124 @@ function updateFromCurrent(updateMethod: (existing: PopupState) => PopupState): 
   stateUpdates$.next({updateMethod: updateMethod});
 }
 
-function getStateFromStorage(): Promise<PopupState> {
-  return new Promise((resolve, reject) => {
-    if (!IS_EXTENSION_CONTEXT) reject('Not running as extension');
-    chrome.storage.sync.get([STATE_KEY], (items) => {
-      if (items[STATE_KEY] != null)
-        resolve(items[STATE_KEY]);
-      else reject();
+function bufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(null, [...bytes.subarray(i, i + chunkSize)]);
+  }
+  return btoa(binary);
+}
+
+async function saveStateToStorage(state: PopupState): Promise<void> {
+  if (!IS_EXTENSION_CONTEXT) return;
+
+  const MAX_CHUNK_SIZE = 6500;
+  const stateJson = JSON.stringify(state);
+
+  try {
+    const cs = new CompressionStream('gzip');
+    const compressedStream = new ReadableStream({
+      start(ctrl) {
+        ctrl.enqueue(new TextEncoder().encode(stateJson));
+        ctrl.close();
+      }
+    }).pipeThrough(cs);
+
+    const arrayBuffer = await new Response(compressedStream).arrayBuffer();
+
+    const base64Compressed = bufferToBase64(arrayBuffer);
+
+    const chunks: Record<string,string> = {};
+    const chunkCount = Math.ceil(base64Compressed.length / MAX_CHUNK_SIZE);
+    for (let i = 0; i < chunkCount; i++) {
+      const slice = base64Compressed.slice(
+        i * MAX_CHUNK_SIZE,
+        (i + 1) * MAX_CHUNK_SIZE
+      );
+      chunks[`${STATE_KEY}_chunk_${i}`] = slice;
+    }
+
+    const metaKey = `${STATE_KEY}_meta`;
+    const metadata = {
+      timestamp: Date.now(),
+      chunks: chunkCount,
+      length: base64Compressed.length,
+    };
+
+    const oldMeta = (await chrome.storage.sync.get(metaKey))[metaKey];
+    const oldCount = oldMeta?.chunks ?? 0;
+
+    await chrome.storage.sync.set({
+      ...chunks,
+      [metaKey]: metadata,
     });
-  });
+
+    // 7. Remove any leftover old chunks
+    if (oldCount > chunkCount) {
+      const toRemove = [];
+      for (let i = chunkCount; i < oldCount; i++) {
+        toRemove.push(`${STATE_KEY}_chunk_${i}`);
+      }
+      await chrome.storage.sync.remove(toRemove);
+    }
+
+    console.log(
+      `Saved state (${stateJson.length}B) → ${base64Compressed.length} chars, ` +
+      `${chunkCount} chunks)`
+    );
+  } catch (err) {
+    console.error('Error saving state:', err);
+  }
+}
+
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const len = binary.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+async function getStateFromStorage(): Promise<PopupState | null> {
+  if (!IS_EXTENSION_CONTEXT) return null;
+
+  const metaKey = `${STATE_KEY}_meta`;
+  try {
+    // this is ridiculous but gzip compresses the state and chunks it
+    // to fit in chrome browser's storage limits
+    const { [metaKey]: meta } = await chrome.storage.sync.get(metaKey);
+    if (!meta?.chunks || typeof meta.chunks !== 'number') return null;
+
+    const chunkKeys = Array.from(
+      { length: meta.chunks },
+      (_, i) => `${STATE_KEY}_chunk_${i}`
+    );
+    const stored = await chrome.storage.sync.get(chunkKeys);
+
+    // 3. Reassemble the base64 string
+    const base64 = chunkKeys.map(k => stored[k] || '').join('');
+
+    // 4. Decode to compressed bytes
+    const compressedBytes = base64ToUint8Array(base64);
+
+    // 5. Decompress via DecompressionStream
+    const ds = new Response(compressedBytes)
+      .body!
+      .pipeThrough(new DecompressionStream('gzip'));
+
+    // 6. Read the decompressed JSON text
+    const stateJson = await new Response(ds).text();
+
+    // 7. Parse and return
+    return JSON.parse(stateJson) as PopupState;
+  } catch (err) {
+    console.error('Error restoring state from storage:', err);
+    return null;
+  }
 }
 
 function extractTabContent(tabId: number): Promise<string> {
@@ -97,7 +215,7 @@ function extractTabContent(tabId: number): Promise<string> {
               console.error("clonedBody is not an HTMLElement");
             }
           } catch (e) {
-            console.error("CS: Error during content extraction script:", e);
+            console.error("error during content extraction", e);
             return document.body.innerText.replace(/\s\s+/g, ' ').trim();
           }
           return '';
@@ -105,8 +223,8 @@ function extractTabContent(tabId: number): Promise<string> {
       },
       (results) => {
         if (chrome.runtime.lastError) {
-          console.error("BG: Scripting Error:", chrome.runtime.lastError.message);
-          return reject(`Failed to execute content extraction script: ${chrome.runtime.lastError.message}`);
+          console.error("scripting error:", chrome.runtime.lastError.message);
+          return reject(`failed to execute content extraction script: ${chrome.runtime.lastError.message}`);
         }
         if (results && results[0] && typeof results[0].result === 'string') {
           if (results[0].result.trim().length > 0) {
@@ -117,20 +235,20 @@ function extractTabContent(tabId: number): Promise<string> {
               { target: { tabId: tabId }, func: () => document.body.innerText.replace(/\s\s+/g, ' ').trim() },
               (fallbackResults) => {
                 if (chrome.runtime.lastError || !fallbackResults || !fallbackResults[0] || typeof fallbackResults[0].result !== 'string') {
-                  console.error("BG: Fallback content extraction failed:", chrome.runtime.lastError?.message);
-                  return reject("Failed to extract any meaningful content.");
+                  console.error("fallback content extraction failed:", chrome.runtime.lastError?.message);
+                  return reject("failed to extract any content");
                 }
                 if (fallbackResults[0].result.trim().length === 0) {
-                  console.error("BG: Even fallback body.innerText extraction yielded empty string.");
-                  return reject("Page seems to contain no extractable text.");
+                  console.error("fallback body.innerText extraction empty");
+                  return reject("page contains no text");
                 }
                 resolve(fallbackResults[0].result);
               }
             );
           }
         } else {
-          console.error("BG: Content extraction script returned unexpected result:", results);
-          reject("Failed to extract content: script did not return valid text.");
+          console.error("content extraction script returned unexpected result:", results);
+          reject("script did not return valid text.");
         }
       }
     );
@@ -146,10 +264,6 @@ function safeSendMessage<T extends PopupMessagePayload>(message: PopupMessage<T>
   } catch (error) {
     console.warn('issue posting message', message, error);
     popupPort = null;
-    // if (currentAbortController) {
-    //   currentAbortController.abort();
-    //   currentAbortController = null;
-    // }
   }
 }
 
@@ -158,10 +272,19 @@ async function hitApi(settings: appSettings, messages: ApiMessage[], isNewPrimar
     state: PluginState.Requested,
     apiMessages: messages,
     chatMessages: isNewPrimary
-      ? [{id: 1, state: ChatMessageState.Requested, type: s.chatMessages?.length ?? 0 > 0 ? ChatType.Primary : ChatType.Chat, role: Role.Assistant }]
-      : [...s.chatMessages?.filter(c => c.state === ChatMessageState.Finished || c.state === ChatMessageState.FinishedAndRendered) ?? [], {id: (s.chatMessages?.length ?? 0) + 1, state: ChatMessageState.Requested, type: s.chatMessages?.length ?? 0 > 0 ? ChatType.Primary : ChatType.Chat, role: Role.Assistant }]
+      ? [{id: 1, state: ChatMessageState.Requested, type: ChatType.Primary, role: Role.Assistant }]
+      : [
+          ...s.chatMessages?.filter(c => c.state === ChatMessageState.Finished || c.state === ChatMessageState.FinishedAndRendered) ?? [],
+          {
+            id: (s.chatMessages?.length ?? 0) + 1,
+            state: ChatMessageState.Requested,
+            type: (s.chatMessages?.some(c => c.state === ChatMessageState.Finished || c.state === ChatMessageState.FinishedAndRendered) ?? false) ? ChatType.Chat : ChatType.Primary,
+            role: Role.Assistant
+          }
+        ]
   }));
 
+  console.log('sending messages', messages);
   const response = await fetch(settings.baseUrl, {
     method: "POST",
     headers: settings.token?.length ?? 0 > 0
@@ -190,7 +313,6 @@ async function hitApi(settings: appSettings, messages: ApiMessage[], isNewPrimar
     throw new Error("Response body is null.");
   }
 
-  // Process stream
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
 
@@ -206,12 +328,9 @@ async function hitApi(settings: appSettings, messages: ApiMessage[], isNewPrimar
 
       let responseText = '';
 
-      // Decode the current chunk
       const buffer = decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
-      // buffer = lines.pop() ?? '';
 
-      // Process each line in the chunk
       for (const line of lines) {
         if (line.startsWith("data: ")) {
           const jsonStr = line.substring(6).trim();
@@ -224,25 +343,27 @@ async function hitApi(settings: appSettings, messages: ApiMessage[], isNewPrimar
               responseText += contentChunk;
             }
           } catch (error) {
-            console.warn("BG: Failed to parse JSON chunk:", jsonStr, error);
+            console.warn("failed to parse JSON chunk:", jsonStr, error);
           }
         }
       }
 
       return responseText;
     }),
+    filter(v => v!=null),
     scan((a,v) => a + v, ''),
     takeUntil(messages$),
   ).subscribe({
     next: v => {
       if (v) {
         updateFromCurrent(s => ({
-          chatMessages: s.chatMessages?.map(c => (c.state === ChatMessageState.Streaming || c.state === ChatMessageState.Requested ? ({...c, content: v }) : c))
+          state: PluginState.StreamingResponse,
+          chatMessages: s.chatMessages?.map(c => (c.state === ChatMessageState.Streaming || c.state === ChatMessageState.Requested ? ({...c, state: ChatMessageState.Streaming, content: v }) : c))
             ?? [{id: 1, state: ChatMessageState.Streaming, content: v, type: ChatType.Primary, role: Role.Assistant}]
         }));
       }
     },
-    error: e => console.error(e),
+    error: e => console.error('error streaming result', e),
     complete: () => {
       reader.cancel('finished or no longer reading').then();
       updateFromCurrent(s => ({state: PluginState.Ready, chatMessages: s.chatMessages?.map(c => (c.state === ChatMessageState.Streaming || c.state === ChatMessageState.Requested ? ({...c, state: ChatMessageState.Finished }) : c)) ?? []}));
@@ -252,50 +373,42 @@ async function hitApi(settings: appSettings, messages: ApiMessage[], isNewPrimar
 
 async function summariseUserContent(content: string, lang: string, systemPromptName: string | null = null): Promise<void> {
   try {
+    if ((content?.length ?? 0) < 1) return;
+
     const settings = await getSettings();
     const prompt = settings.prompts.find(p => p.name === (systemPromptName ?? 'CustomContent')) ?? settings.prompts[0];
 
-    if (content && content.trim().length > 0) {
-      // safeSendMessage({ type: "context", payload: content });
-    } else {
-      const errorMsg =  'No content provided.';
-      safeSendMessage({ type: PopupMessageType.Error, payload: errorMsg });
-      throw new Error(errorMsg);
-    }
-
     const systemCommand = prompt.prompt.replace(/{lang}/g, lang);
 
-    const messages = [{ role: Role.System, content: systemCommand }, { role: Role.User, content: content.trim() }];
+    content = 'Please process this information according to your system prompt:\n\n' + content.trim();
+
+    const messages = [{ role: Role.System, content: systemCommand }, { role: Role.User, content: content }];
 
     await hitApi(settings, messages, true);
 
   } catch (error) {
     console.error('error summarising content', error);
-    return;
   }
 }
 
-async function summariseTabContent(tabId: number, lang: string, promptName?: string) {
+async function summariseTabContent(tabId: number, lang: string, promptName?: string): Promise<void> {
   try {
     const settings = await getSettings();
     const prompt = settings.prompts.find(p => p.name === promptName) ?? settings.prompts[0];
 
-    const content = await extractTabContent(tabId);
-    if (content && content.trim().length > 0) {
-      // safeSendMessage({ type: "context", payload: content }); // Send web context
-    } else {
-      console.warn("Extracted web content is empty.");
-    }
+    let content = await extractTabContent(tabId);
+    if ((content?.trim().length ?? 0) < 1) return;
 
     const systemCommand = prompt.prompt.replace(/{lang}/g, lang);
 
-    const messages = [{ role: Role.System, content: systemCommand }, { role: Role.User, content: content.trim() }];
+    content = 'Please process this information according to your system prompt:\n\n' + content.trim();
 
-    return await hitApi(settings, messages, true);
+    const messages = [{ role: Role.System, content: systemCommand }, { role: Role.User, content }];
+
+    await hitApi(settings, messages, true);
 
   } catch (e) {
     console.error('error summarising tab', e);
-    return '';
   }
 }
 
@@ -311,26 +424,43 @@ stateUpdates$.pipe(
       ? val.updateMethod(acc)
       : val.updateObject;
 
-    console.log('update state', updateObj, acc, isUpdateMethod);
     return ({ ...acc, ...updateObj });
   }, ({ ...getDefaultState() })),
   debounceTime(1),
   startWith(getDefaultState()),
   catchError(() => of(getDefaultState())),
+  takeUntil(suspendEvent$),
 ).subscribe(v => currentState$.next(v));
 
-currentState$.subscribe(s => safeSendMessage({type: PopupMessageType.State, payload: s} as PopupMessage<PopupState>));
-messages$.subscribe(s => console.log('message received', s));
+currentState$.pipe(
+  throttleTime(500, undefined, { leading: true, trailing: true }),
+  takeUntil(suspendEvent$),
+).subscribe(s => safeSendMessage({ type: PopupMessageType.State, payload: s } as PopupMessage<PopupState>));
+
+if (IS_EXTENSION_CONTEXT) {
+  currentState$.pipe(
+    filter(s => (s.chatMessages?.length ?? 0) > 0 && (s.chatMessages?.some(c => c.state === ChatMessageState.FinishedAndRendered) ?? false)),
+    throttleTime(5000, undefined, { leading: true, trailing: true }),
+    takeUntil(suspendEvent$),
+  ).subscribe(async s => {
+    try {
+      console.log('saving state',s);
+      await saveStateToStorage(s);
+    } catch (e) {
+      console.error('error saving state', e);
+    }
+  });
+}
 
 messages$.pipe(
   filter(m => m.type == WorkerRequestType.SummariseContent),
   map(v => v.payload as SummariseContentRequest),
   catchError((e) => of(null)),
   filter(v => v != null),
+  takeUntil(suspendEvent$),
 ).subscribe(async v => {
   try {
-    const fullResult = await summariseUserContent(v.content, v.lang);
-    console.log(fullResult);
+    await summariseUserContent(v.content, v.lang);
   } catch (e) {
     console.error(e);
   }
@@ -341,7 +471,52 @@ messages$.pipe(
   map(v => v.payload as SummariseTabRequest),
   catchError((e) => of(null)),
   filter(v => v != null),
+  takeUntil(suspendEvent$),
 ).subscribe(v => summariseTabContent(v.tabId, v.lang, v.promptName));
+
+messages$.pipe(
+  filter(m => m.type == WorkerRequestType.AskQuestion),
+  map(v => v.payload as AskQuestionRequest),
+  catchError((e) => of(null)),
+  filter(v => v?.content != null),
+  map(v => <AskQuestionRequest>v),
+  withLatestFrom(currentState$),
+  filter(([,s]) => (s.apiMessages?.length ?? 0) > 1),
+  takeUntil(suspendEvent$),
+).subscribe(async ([{content, lang},state]) => {
+  const settings = await getSettings();
+
+  const newSystemPrompt = (settings.prompts.find(p => p.name === DefaultPrompt.CustomContent)?.prompt ?? settings.prompts[0]?.prompt ?? '').replace(/{lang}/g, lang);
+
+  const messages: ApiMessage[] =
+    [
+      {
+        role: Role.System,
+        content: newSystemPrompt,
+      },
+      ...(state.apiMessages ?? []).filter(m => m.role !== Role.System),
+      {
+        role: Role.User,
+        content: (content ?? '')  + '\n\n',
+      }
+    ];
+
+  const chatMessages: ChatMessage[] =
+    [...(state.chatMessages ?? []),
+      {
+        role: Role.User,
+        content: (content ?? ''),
+        state: ChatMessageState.FinishedAndRendered,
+        type: ChatType.Chat,
+        id: (state?.chatMessages?.length ?? 0) + 1,
+      }
+    ];
+
+  updateState(({chatMessages, apiMessages: messages, state: PluginState.Requested}));
+
+  await hitApi(settings, messages, false);
+});
+
 
 messages$.pipe(
   filter(m => m.type == WorkerRequestType.GetState),
@@ -349,9 +524,22 @@ messages$.pipe(
   map(([,s]) => s),
   catchError((e) => of(null)),
   filter(v => v != null),
+  takeUntil(suspendEvent$),
 ).subscribe(v => safeSendMessage({type: PopupMessageType.State, payload: v} as PopupMessage<PopupState>));
 
-getStateFromStorage().then(v => {if (v != null) { updateState(v); } }).catch(e => console.log('no existing state'));
+getStateFromStorage().then(v => {if (v != null) { updateState(v); } }).catch(e => console.log('no existing state', e));
+
+currentState$.pipe(
+  filter(s => s.chatMessages?.some(m => m.state === ChatMessageState.Finished) ?? false),
+  takeUntil(suspendEvent$),
+).subscribe(s => {
+  const messagesToProcess = s.chatMessages?.filter(c => c.state === ChatMessageState.Finished && c.content != null && c.content.length > 0) ?? [];
+  for (let i = 0; i < messagesToProcess.length; i++) {
+    const message = messagesToProcess[i];
+    const html = markdownProcessor.render(message.content ?? '');
+    updateFromCurrent(cs => ({chatMessages: cs.chatMessages?.map(c => c.id === message.id && c.state === ChatMessageState.Finished ? ({...c, content: html, state: ChatMessageState.FinishedAndRendered }) : c) ?? []}));
+  }
+});
 
 if (IS_EXTENSION_CONTEXT) {
   chrome.runtime.onConnect.addListener((port: Port) => {
@@ -362,5 +550,10 @@ if (IS_EXTENSION_CONTEXT) {
       messages$.next(message)
     });
     port.onDisconnect.addListener(() => console.log('disconnect'));
+  });
+
+  chrome.runtime.onSuspend.addListener(() => {
+    suspendEvent$.next();
+    suspendEvent$.complete();
   });
 }

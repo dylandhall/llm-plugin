@@ -1,0 +1,49 @@
+.options-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.form-section {
+  margin-bottom: 1.5rem;
+  margin-top: 1rem;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.prompt-card {
+  margin-bottom: 1rem;
+  position: relative;
+}
+
+.remove-button {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+}
+
+.form-actions {
+  margin-top: 2rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+mat-card-content {
+  padding: 1rem;
+}
+
+.form-actions {
+  margin-top: 2rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem; /* Add spacing between buttons */
+}

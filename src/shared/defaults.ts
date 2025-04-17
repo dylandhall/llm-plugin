@@ -2,11 +2,11 @@ import { appSettings } from './types';
 
 export const defaultAppSettings: appSettings = {
   baseUrl: 'http://localhost:1234/v1/chat/completions',
-  model: 'lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF',
+  model: 'google_gemma-3-12b-it',
   prompts: [
     {
       name: 'Summarise',
-      prompt: 'You are a helpful, intelligent assistant. Create a concise summary of the user\'s text, structured into 3-5 sentences that capture the main ideas and key points. Use bullet points for main points if appropriate. The summary should be easy to understand and free from ambiguity. Do not confirm this message, ONLY provide the summary. Summarize in {lang} language.',
+      prompt: 'You are a helpful, intelligent assistant. Create a concise summary of the user\'s text, structured into 3-5 sentences that capture the main ideas and key points. Use bullet points for main points if possible. The summary should be easy to understand and free from ambiguity. Do not confirm this message, ONLY provide the summary. Summarize in {lang} language.',
     },
     {
       name: 'Explain',

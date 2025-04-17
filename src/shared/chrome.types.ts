@@ -9,6 +9,7 @@ export enum ConnectionStatus {
 export enum DefaultPrompt {
   Summarise = 'Summarise',
   Explain = 'Explain',
+  CustomContent = 'CustomContent',
 }
 
 export interface WorkerRequestPayload {
@@ -28,6 +29,7 @@ export interface SummariseTabRequest extends WorkerRequestPayload {
   tabId: number;
   lang: string;
 }
+
 export interface AskQuestionRequest extends WorkerRequestPayload {
   content: string;
   lang: string;

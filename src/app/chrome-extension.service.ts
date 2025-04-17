@@ -39,8 +39,9 @@ export class ChromeExtensionService implements OnDestroy {
 
   // if there are messages queued between the first message adding the port and the port
   // setting up the pipe to handle subsequent messages, this will handle that.
-  private readonly messages$ = new ReplaySubject<{isHandled?: boolean, message: WorkerRequest<WorkerRequestPayload>}>(5, 100);
+  private readonly messages$ = new ReplaySubject<{isHandled?: boolean, message: WorkerRequest<WorkerRequestPayload>}>(5, 500);
   private readonly serviceMessage$ = new Subject<PopupMessage<PopupMessagePayload>>();
+
   public getServiceMessages$(): Observable<PopupMessage<PopupMessagePayload>> {
     return this.serviceMessage$.asObservable();
   }
@@ -50,7 +51,7 @@ export class ChromeExtensionService implements OnDestroy {
   constructor(private zone: NgZone) {
     if (!IS_EXTENSION_CONTEXT) return;
 
-    const messageToSend$ = new Subject<{port: Port, message: WorkerRequest<any>}>();
+    const messageToSend$ = new Subject<{port: Port, message: WorkerRequest<WorkerRequestPayload>}>();
 
     messageToSend$.subscribe(({port, message}) => {
       try {
@@ -61,12 +62,11 @@ export class ChromeExtensionService implements OnDestroy {
         this.messages$.next({message});
       }
     });
-    this.port$.subscribe(v => console.log('did i get port', v));
+
     this.port$.pipe(
-      tap(v => console.log('got port', v)),
       switchMap(port =>
         this.messages$.pipe(
-          tap(v => console.log(v, 'message in port pipe')),
+          // tap(v => console.log(v, 'message in port pipe')),
           filter(m => m.isHandled !== true),
           // i hate mutating objects, but this is a bit of fun
           tap(m => m.isHandled = true),
@@ -78,7 +78,8 @@ export class ChromeExtensionService implements OnDestroy {
 
     this.onDisconnect$.pipe(
       switchMap(() => this.messages$),
-      tap(v => console.log(v, 'message in disconnected pipe')),
+      filter(v => v.isHandled !== true),
+      // tap(v => console.log(v, 'message in disconnected pipe')),
       take(1),
       takeUntil(this.port$),
       takeUntil(this.destroy$),
@@ -125,7 +126,7 @@ export class ChromeExtensionService implements OnDestroy {
   }
 
   public sendQuestion(followUp: string): void {
-    this.sendPayload({payload: {lang: 'English', content: followUp} as AskQuestionRequest, type: WorkerRequestType.AskQuestion});
+    this.sendPayload({payload: {lang:'English', content: followUp} as AskQuestionRequest, type: WorkerRequestType.AskQuestion});
   }
 
   public requestState(): void {
