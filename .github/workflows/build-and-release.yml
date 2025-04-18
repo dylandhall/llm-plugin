@@ -44,6 +44,13 @@ jobs:
           cd dist/browser
           zip -r ../../extension-${{ steps.get_version.outputs.version }}.zip .
 
+      # Upload the zip for later use
+      - name: Upload extension zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-${{ steps.get_version.outputs.version }}.zip
+          path: ./extension-${{ steps.get_version.outputs.version }}.zip
+
       # restore your private key from the secret
       - name: Restore extension.pem
         run: |
@@ -66,6 +73,13 @@ jobs:
             --pack-extension=dist/browser \
             --pack-extension-key=extension.pem
           mv dist/browser.crx ./extension-${{ steps.get_version.outputs.version }}.crx
+
+      # Upload the crx for later use
+      - name: Upload extension CRX
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-${{ steps.get_version.outputs.version }}.crx
+          path: ./extension-${{ steps.get_version.outputs.version }}.crx
 
       # Get or create the GitHub Release for this version
       - name: Get or create Release
@@ -107,20 +121,15 @@ jobs:
             // Strip the "{?name,label}" suffix
             core.setOutput('upload_url', uploadUrl.split('{')[0]);
 
-      # Upload the ZIP to the release
-      - name: Upload ZIP asset
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.release.outputs.upload_url }}
-          asset_path: ./extension-${{ steps.get_version.outputs.version }}.zip
-          asset_name: extension-${{ steps.get_version.outputs.version }}.zip
-          asset_content_type: application/zip
+      - name: Publish extension artifacts via GH CLI
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          RELEASE_TAG="v$VERSION"
 
-      # 10. Upload the CRX to the release
-      - name: Upload CRX asset
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.release.outputs.upload_url }}
-          asset_path: ./extension-${{ steps.get_version.outputs.version }}.crx
-          asset_name: extension-${{ steps.get_version.outputs.version }}.crx
-          asset_content_type: application/x-chrome-extension
+          # zip and crx should already exist in the workspace root
+          gh release upload "$RELEASE_TAG" \
+            "./extension-$VERSION.zip" \
+            "./extension-$VERSION.crx" \
+            --clobber
