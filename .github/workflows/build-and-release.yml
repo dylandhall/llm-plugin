@@ -113,7 +113,7 @@ jobs:
         with:
           upload_url: ${{ steps.release.outputs.upload_url }}
           asset_path: ./extension-${{ steps.get_version.outputs.version }}.zip
-          asset_name: llm-plugin.zip
+          asset_name: llm_plugin.zip
           asset_content_type: application/zip
 
       # 10. Upload the CRX to the release
@@ -122,5 +122,5 @@ jobs:
         with:
           upload_url: ${{ steps.release.outputs.upload_url }}
           asset_path: ./extension-${{ steps.get_version.outputs.version }}.crx
-          asset_name: llm-plugin.crx
+          asset_name: llm_plugin.crx
           asset_content_type: application/x-chrome-extension
