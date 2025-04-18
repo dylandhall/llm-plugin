@@ -3,6 +3,7 @@ import {
   NgZone,
   OnDestroy
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   filter,
   map,
@@ -12,7 +13,7 @@ import {
   switchMap,
   take,
   takeUntil,
-  tap
+  tap,
 } from 'rxjs';
 import {
   AskQuestionRequest,
@@ -53,7 +54,9 @@ export class ChromeExtensionService implements OnDestroy {
 
     const messageToSend$ = new Subject<{port: Port, message: WorkerRequest<WorkerRequestPayload>}>();
 
-    messageToSend$.subscribe(({port, message}) => {
+    messageToSend$.pipe(
+      takeUntilDestroyed()
+    ).subscribe(({port, message}) => {
       try {
         port.postMessage(message);
       }
@@ -63,38 +66,22 @@ export class ChromeExtensionService implements OnDestroy {
       }
     });
 
+    this.port$.subscribe(p => {
+      p.onMessage.addListener(this.handleMessage);
+      p.onDisconnect.addListener(this.handleDisconnect);
+    });
+
     this.port$.pipe(
       switchMap(port =>
         this.messages$.pipe(
-          // tap(v => console.log(v, 'message in port pipe')),
           filter(m => m.isHandled !== true),
           // i hate mutating objects, but this is a bit of fun
           tap(m => m.isHandled = true),
           map(message => ({port, message: message.message})),
           takeUntil(this.onDisconnect$),
         )),
-      takeUntil(this.destroy$),
+      takeUntilDestroyed(),
     ).subscribe(v => messageToSend$.next(v));
-
-    this.onDisconnect$.pipe(
-      switchMap(() => this.messages$),
-      filter(v => v.isHandled !== true),
-      // tap(v => console.log(v, 'message in disconnected pipe')),
-      take(1),
-      takeUntil(this.port$),
-      takeUntil(this.destroy$),
-    ).subscribe(m => {
-      const port = chrome.runtime.connect({ name: PORT_NAME });
-      console.log('message got port', port);
-      m.isHandled = true;
-      this.port$.next(port);
-      messageToSend$.next({port:port, message: m.message});
-    });
-
-    this.port$.subscribe(p => {
-      p.onMessage.addListener(this.handleMessage);
-      p.onDisconnect.addListener(this.handleDisconnect);
-    });
 
     this.port$.pipe(
       switchMap(p => this.destroy$.pipe(map(() => p))),
@@ -105,6 +92,17 @@ export class ChromeExtensionService implements OnDestroy {
         this.handleDisconnect(p);
         p.disconnect();
       });
+    });
+
+    this.onDisconnect$.pipe(
+      switchMap(() => this.messages$.pipe(take(1))),
+      filter(v => v.isHandled !== true),
+      takeUntilDestroyed(),
+    ).subscribe(m => {
+      const port = chrome.runtime.connect({ name: PORT_NAME });
+      m.isHandled = true;
+      messageToSend$.next({port:port, message: m.message});
+      this.port$.next(port);
     });
 
     // set up message/connect listener
@@ -129,6 +127,10 @@ export class ChromeExtensionService implements OnDestroy {
     this.sendPayload({payload: {content: followUp} as AskQuestionRequest, type: WorkerRequestType.AskQuestion});
   }
 
+  public clearChat(): void {
+    this.sendPayload({payload: {} as WorkerRequestPayload, type: WorkerRequestType.ClearChat});
+  }
+
   public requestState(): void {
     this.sendPayload({payload: {}, type: WorkerRequestType.GetState});
   }
@@ -141,7 +143,7 @@ export class ChromeExtensionService implements OnDestroy {
     const portMessage = message as PopupMessage<WorkerRequestPayload>;
     if (portMessage == null) return;
 
-    this.zone.run(() => this.serviceMessage$.next(message as PopupMessage<any>));
+    this.zone.run(() => this.serviceMessage$.next(message as PopupMessage<PopupMessagePayload>));
   };
 
   private handleDisconnect = (p?: chrome.runtime.Port): void => {
@@ -149,4 +151,5 @@ export class ChromeExtensionService implements OnDestroy {
     p?.onMessage.removeListener(this.handleMessage);
     this.onDisconnect$.next();
   };
+
 }

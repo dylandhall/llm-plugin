@@ -37,6 +37,7 @@ export enum WorkerRequestType {
   SummariseContent,
   GetState,
   AskQuestion,
+  ClearChat,
 }
 
 export interface WorkerRequest<T extends WorkerRequestPayload> {

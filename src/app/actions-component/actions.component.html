@@ -2,9 +2,9 @@
   <div class="messages" #messages>
     @for (m of messages$ | async; track m.id) {
       @if (m.state === ChatMessageState.FinishedAndRendered) {
-        <div [ngClass]="{'is-chat': m.type === ChatType.Chat}" [innerHTML]="m.content"></div>
+        <div [ngClass]="{'is-chat': m.type === ChatType.Chat, 'is-user': m.role === Role.User}" [innerHTML]="m.content"></div>
       } @else if(m.state === ChatMessageState.Finished || m.state === ChatMessageState.Streaming) {
-        <div [ngClass]="{'is-chat': m.type === ChatType.Chat}"><pre class="preview">{{m.content}}</pre></div>
+        <div [ngClass]="{'is-chat': m.type === ChatType.Chat, 'is-user': m.role === Role.User}"><pre class="preview">{{m.content}}</pre></div>
       } @else {
         <div>
           <mat-spinner [diameter]="60"></mat-spinner>
@@ -14,20 +14,22 @@
   </div>
   <div>
   @if (showChat()) {
-    <div style="width: 100%;" class="flex chat-input-area">
+    <div class="flex chat-input-area">
       <mat-form-field style="width: 100%;">
-        <textarea matInput [formControl]="chatInput" (keydown)="onKey($event)">
+        <textarea matInput #chatInputElem [formControl]="chatInput" (keydown)="onKey($event)">
 
         </textarea>
       </mat-form-field>
     </div>
     <div class="flex-row buttons">
+      <div><small>Press Ctrl-B to toggle chat</small></div>
       <button mat-stroked-button (click)="sendChat()">Send</button>
       <button mat-stroked-button (click)="showChat.set(false)">Close</button>
     </div>
   } @else {
     <div class="flex-row buttons">
-      <button mat-stroked-button [disabled]="!canChat()" (click)="showChat.set(true)">Chat</button>
+      <button mat-stroked-button [disabled]="!canClear()" (click)="clearChat()">Clear</button>
+      <button mat-stroked-button [disabled]="!canChat()" (click)="openChat()">Chat</button>
       @for (customPrompt of customPrompts(); track customPrompt.name) {
         <button mat-stroked-button (click)="send(customPrompt.prompt)">{{customPrompt.name}}</button>
       }

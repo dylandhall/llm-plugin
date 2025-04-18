@@ -62,7 +62,7 @@ const markdownProcessor = new MarkdownIt({
 let popupPort: Port | null = null;
 
 function getDefaultState() : PopupState {
-  return { state: PluginState.Ready };
+  return {state: PluginState.Ready, chatMessages:[], apiMessages: []};
 }
 
 function updateState(updatedState: PopupState) {
@@ -406,6 +406,7 @@ async function summariseTabContent(tabId: number, promptName?: string): Promise<
   }
 }
 
+console.log('setup pipes');
 
 stateUpdates$.pipe(
   scan((acc, val) => {
@@ -433,7 +434,6 @@ currentState$.pipe(
 
 if (IS_EXTENSION_CONTEXT) {
   currentState$.pipe(
-    filter(s => (s.chatMessages?.length ?? 0) > 0 && (s.chatMessages?.some(c => c.state === ChatMessageState.FinishedAndRendered) ?? false)),
     throttleTime(5000, undefined, { leading: true, trailing: true }),
     takeUntil(suspendEvent$),
   ).subscribe(async s => {
@@ -457,6 +457,14 @@ messages$.pipe(
   } catch (e) {
     console.error(e);
   }
+});
+
+messages$.pipe(
+  filter(m => m.type == WorkerRequestType.ClearChat),
+  catchError((e) => of(null)),
+  takeUntil(suspendEvent$),
+).subscribe(() => {
+  updateState(getDefaultState());
 });
 
 messages$.pipe(
@@ -541,7 +549,7 @@ if (IS_EXTENSION_CONTEXT) {
     port.onMessage.addListener((message) => {
       messages$.next(message)
     });
-    // port.onDisconnect.addListener(() => console.log('disconnect'));
+    // port.onDisconnect.addListener(() => console.log('worker disconnect'));
   });
 
   chrome.runtime.onSuspend.addListener(() => {

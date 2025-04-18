@@ -1,0 +1,121 @@
+name: Build, Pack & Release Chrome Extension
+
+on:
+  push:
+    branches:
+      - add-build-process
+
+permissions:
+  contents: write  # needed to query/create releases & upload assets
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Check out your code
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      # Set up Node.js and install dependencies
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - name: Install dependencies
+        run: npm ci
+
+      # Build your Angular extension
+      - name: Build production bundle
+        run: npm run build
+
+      # Read the version from manifest.json
+      - name: Read extension version
+        id: get_version
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const manifest = require('./dist/browser/manifest.json');
+            core.setOutput('version', manifest.version);
+
+      # Package dist folder into a ZIP
+      - name: Package ZIP
+        run: |
+          cd dist/browser
+          zip -r ../../extension-${{ steps.get_version.outputs.version }}.zip .
+
+      # restore your private key from the secret
+      - name: Restore extension.pem
+        run: |
+          echo "${{ secrets.EXTENSION_KEY_B64 }}" | base64 -d > extension.pem
+
+      # Install Chromium for packing .crx
+      - name: Install Chromium
+        run: sudo apt-get update && sudo apt-get install -y chromium-browser
+
+      # Pack the .crx using your extension.pem
+      - name: Pack CRX
+        run: |
+          CHROME_BIN=chromium-browser
+          $CHROME_BIN --headless --disable-gpu \
+            --pack-extension=dist/my-app \
+            --pack-extension-key=extension.pem
+          mv dist/my-app.crx ./extension-${{ steps.get_version.outputs.version }}.crx
+
+      # Get or create the GitHub Release for this version
+      - name: Get or create Release
+        id: release
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const version = require('./dist/my-app/manifest.json').version;
+            const tag = version;
+            const releaseName = `v${tag}`;
+            let uploadUrl;
+
+            try {
+              // Try to fetch an existing release by tag
+              const existing = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag
+              });
+              uploadUrl = existing.data.upload_url;
+            } catch (err) {
+              if (err.status === 404) {
+                // Create a new release if none exists
+                const created = await github.rest.repos.createRelease({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  tag_name: tag,
+                  name: releaseName,
+                  body: `Release ${tag}`,
+                  draft: false,
+                  prerelease: false
+                });
+                uploadUrl = created.data.upload_url;
+              } else {
+                throw err;
+              }
+            }
+
+            // Strip the "{?name,label}" suffix
+            core.setOutput('upload_url', uploadUrl.split('{')[0]);
+
+      # Upload the ZIP to the release
+      - name: Upload ZIP asset
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.release.outputs.upload_url }}
+          asset_path: ./extension-${{ steps.get_version.outputs.version }}.zip
+          asset_name: llm-plugin-${{ steps.get_version.outputs.version }}.zip
+          asset_content_type: application/zip
+
+      # 10. Upload the CRX to the release
+      - name: Upload CRX asset
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.release.outputs.upload_url }}
+          asset_path: ./extension-${{ steps.get_version.outputs.version }}.crx
+          asset_name: llm-plugin-${{ steps.get_version.outputs.version }}.crx
+          asset_content_type: application/x-chrome-extension

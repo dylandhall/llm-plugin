@@ -16,27 +16,46 @@
     padding: 0.8rem;
     display: flex;
     flex-direction: column;
+    scroll-behavior: smooth;
 
     .is-chat {
       border-radius: 10px;
-      border: 1px solid aqua;
+      border: 1px solid var(--mat-sys-primary);
       margin: 4px;
       padding: 0.8rem;
+      background-color: var(--mat-sys-background);
+      color: var(--mat-sys-on-background);
+    }
+    .is-user {
+      border-radius: 12px 12px 4px 12px;
+      border: 1px solid var(--mat-sys-primary);
+      margin: 4px 4px 4px auto;
+      padding: 0.8rem;
+      background: var(--mat-sys-secondary);
+      color: var(--mat-sys-on-secondary);
+      align-self: flex-end;
+      max-width: 80%;
+      text-align: right;
+      display: inline-block;
     }
   }
 }
 .buttons {
   width: 100%;
   justify-content: flex-end;
+  align-items: center;
   margin-top: auto;
   margin-bottom: 0.5rem;
-  button {
+  button, div {
     margin-right: 0.5rem;
   }
 }
+
 .chat-input-area {
   flex-shrink: 0;
+  width: 100%;
 }
+
 .preview {
   font: unset;
   text-wrap: wrap;
