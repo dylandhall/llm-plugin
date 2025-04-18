@@ -5,14 +5,14 @@ esbuild.build({
   entryPoints: ['src/service-worker/service-worker.ts'],
   bundle: true,
   outfile: 'dist/browser/service-worker.js',
-  target: 'chrome114', // or appropriate target
+  target: 'chrome114',
   format: 'iife', // Service workers run in an isolated JS context
   platform: 'browser',
-  external: [], // all deps from node_modules will be bundled
+  external: [],
   define: {
     'process.env.NODE_ENV': '"production"',
   },
-  minify: false,
+  minify: true,
   loader: {
     '.ts': 'ts',
   },

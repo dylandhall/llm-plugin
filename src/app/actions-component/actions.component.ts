@@ -6,8 +6,8 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  HostListener,
   inject,
-  OnDestroy,
   OnInit,
   signal,
   ViewChild,
@@ -26,14 +26,11 @@ import {
 import { MatProgressSpinner } from '@angular/material/progress-spinner';
 import {
   BehaviorSubject,
+  debounceTime,
   filter,
   map,
   pairwise,
-  skip,
   startWith,
-  take,
-  takeUntil,
-  timer,
 } from 'rxjs';
 import {
   ChatMessage,
@@ -41,7 +38,8 @@ import {
   ChatType,
   DefaultPrompt,
   PopupMessageType,
-  PopupState
+  PopupState,
+  Role
 } from '../../shared/chrome.types';
 import { IS_EXTENSION_CONTEXT } from '../../shared/constants';
 import { getSettings } from '../../shared/settings';
@@ -70,8 +68,10 @@ export class ActionsComponent implements OnInit {
 
   public readonly showChat = signal(false);
   public readonly canChat = signal(false);
+  public readonly canClear = signal(false);
 
-  @ViewChild('messages') private messagesContainer!: ElementRef<HTMLDivElement>;
+  @ViewChild('messages', {static: true}) private messagesContainer!: ElementRef<HTMLDivElement>;
+  @ViewChild('chatInputElem', {static: false}) private chatInputElem!: ElementRef<HTMLDivElement>;
 
   private readonly backgroundService: ChromeExtensionService = inject(ChromeExtensionService);
   public readonly messages$: BehaviorSubject<ChatMessage[]> = new BehaviorSubject([] as ChatMessage[]);
@@ -87,27 +87,35 @@ export class ActionsComponent implements OnInit {
     ).subscribe(s => this.messages$.next(s.chatMessages ?? []));
 
     this.messages$.pipe(
-      map(v => v.some(m => m.state === ChatMessageState.FinishedAndRendered || m.state === ChatMessageState.Finished)),
+      map(v =>
+          ({hasFinished: v.some(m => m.state === ChatMessageState.FinishedAndRendered || m.state === ChatMessageState.Finished), hasAny: v.length > 0})),
       takeUntilDestroyed(),
-    ).subscribe(v => {
-      this.canChat.set(v);
-      if (!v && this.showChat()) this.showChat.set(false);
+    ).subscribe(({hasFinished, hasAny}) => {
+      this.canChat.set(hasFinished);
+      this.canClear.set(hasAny);
+      if (!hasFinished && this.showChat()) this.showChat.set(false);
     });
 
     this.messages$.pipe(
+      startWith([] as ChatMessage[]),
       pairwise(),
-      filter(([a,b]) => (a.length < b.length)),
+      filter(([a,b]) =>
+        (a.length < b.length)
+        || (a.filter(m => m.state === ChatMessageState.FinishedAndRendered).length < b.filter(m => m.state === ChatMessageState.FinishedAndRendered).length)),
+      debounceTime(10),
       takeUntilDestroyed(),
     ).subscribe(() => this.scrollToBottom());
 
-    // unsure if needed, but in case the background isn't ready when i first request the state
-    timer(100).pipe(
-      startWith(0),
-      takeUntil(this.messages$.pipe(skip(1), takeUntilDestroyed(), take(1))),
-      takeUntilDestroyed(),
-    ).subscribe(() => {
-      this.backgroundService.requestState();
-    });
+    this.backgroundService.requestState();
+
+    // // unsure if needed, but in case the background isn't ready when i first request the state
+    // timer(100).pipe(
+    //   startWith(0),
+    //   takeUntil(this.messages$.pipe(skip(1), takeUntilDestroyed(), take(1))),
+    //   takeUntilDestroyed(),
+    // ).subscribe(() => {
+    //   this.backgroundService.requestState();
+    // });
 
   }
 
@@ -159,8 +167,20 @@ export class ActionsComponent implements OnInit {
     }
   }
 
+  @HostListener('window:keydown', ['$event'])
+  public onGlobalKey($event: KeyboardEvent): void {
+    if ($event.ctrlKey && ($event.key === 'b' || $event.key === 'B')) {
+      $event.preventDefault();
+      this.showChat.set(!this.showChat());
+      if (this.showChat()) {
+        setTimeout(() => this.chatInputElem?.nativeElement?.focus(), 1);
+      }
+    }
+  }
+
   // Helper method to scroll to the bottom
   private scrollToBottom(): void {
+    console.log('scrolling');
     try {
       const element = this.messagesContainer?.nativeElement;
       if (!element) return;
@@ -168,5 +188,16 @@ export class ActionsComponent implements OnInit {
     } catch (err) {
       console.error('Error scrolling to bottom:', err);
     }
+  }
+
+  public clearChat(): void {
+    this.backgroundService.clearChat();
+  }
+
+  protected readonly Role = Role;
+
+  public openChat() {
+    this.showChat.set(true);
+    setTimeout(() => this.chatInputElem?.nativeElement?.focus(), 1);
   }
 }
