@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "LLM Summary Chat",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Summarises or explains web pages and selected text using a local LLM.",
   "permissions": [
     "activeTab",

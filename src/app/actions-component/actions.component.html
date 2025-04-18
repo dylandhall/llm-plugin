@@ -1,4 +1,4 @@
-<div style="width: 40rem;" class="popup-container">
+<div class="popup-container">
   <div class="messages" #messages>
     @for (m of messages$ | async; track m.id) {
       @if (m.state === ChatMessageState.FinishedAndRendered) {

@@ -3,7 +3,7 @@ name: Build, Pack & Release Chrome Extension
 on:
   push:
     branches:
-      - add-build-process
+      - main
 
 permissions:
   contents: write  # needed to query/create releases & upload assets
