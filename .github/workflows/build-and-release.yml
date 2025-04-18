@@ -54,13 +54,17 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y chromium-browser
 
       # Pack the .crx using your extension.pem
-      - name: Pack CRX
+      - name: Pack CRX with Chromium
+        env:
+          # Chrome will use this instead of /home/runner/snap/...
+          XDG_CACHE_HOME: ${{ runner.temp }}/chrome-cache
         run: |
-          CHROME_BIN=chromium-browser
-          $CHROME_BIN --headless --disable-gpu \
-            --pack-extension=dist/my-app \
-            --pack-extension-key=extension.pem
-          mv dist/my-app.crx ./extension-${{ steps.get_version.outputs.version }}.crx
+          mkdir -p $XDG_CACHE_HOME
+          chromium-browser --headless --disable-gpu \
+          --user-data-dir=${{ runner.temp }}/chrome-user-data \
+          --pack-extension=dist/my-app \
+          --pack-extension-key=extension.pem
+          mv dist/my-app.crx extension-${{ steps.get_version.outputs.version }}.crx
 
       # Get or create the GitHub Release for this version
       - name: Get or create Release
