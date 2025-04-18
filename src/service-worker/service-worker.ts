@@ -406,8 +406,6 @@ async function summariseTabContent(tabId: number, promptName?: string): Promise<
   }
 }
 
-console.log('setup pipes');
-
 stateUpdates$.pipe(
   scan((acc, val) => {
     const isUpdateMethod = val.updateObject == null;

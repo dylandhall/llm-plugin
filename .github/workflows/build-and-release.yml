@@ -63,9 +63,9 @@ jobs:
           mkdir -p $HOME/chrome-user-data
           chromium-browser --headless --disable-gpu \
             --user-data-dir=$HOME/chrome-user-data \
-            --pack-extension=dist/my-app \
+            --pack-extension=dist/browser \
             --pack-extension-key=extension.pem
-          mv dist/my-app.crx ./extension-${{ steps.get_version.outputs.version }}.crx
+          mv dist/browser.crx ./extension-${{ steps.get_version.outputs.version }}.crx
 
       # Get or create the GitHub Release for this version
       - name: Get or create Release
@@ -73,7 +73,7 @@ jobs:
         uses: actions/github-script@v6
         with:
           script: |
-            const version = require('./dist/my-app/manifest.json').version;
+            const version = require('./dist/browser/manifest.json').version;
             const tag = version;
             const releaseName = `v${tag}`;
             let uploadUrl;
