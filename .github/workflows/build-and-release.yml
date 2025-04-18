@@ -125,11 +125,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION="${{ steps.get_version.outputs.version }}"
-          RELEASE_TAG="v$VERSION"
-
-          # zip and crx should already exist in the workspace root
-          gh release upload "$RELEASE_TAG" \
-            "./extension-$VERSION.zip" \
-            "./extension-$VERSION.crx" \
-            --clobber
+          gh release upload "${{ steps.release.outputs.tag }}" \
+          "extension-${{ steps.get_version.outputs.version }}.zip" \
+          "extension-${{ steps.get_version.outputs.version }}.crx" \
+          --clobber
