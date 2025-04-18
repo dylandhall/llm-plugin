@@ -38,6 +38,12 @@ jobs:
             const manifest = require('./dist/browser/manifest.json');
             core.setOutput('version', manifest.version);
 
+      # Package dist folder into a ZIP
+      - name: Package ZIP
+        run: |
+          cd dist/browser
+          zip -r ../../extension-${{ steps.get_version.outputs.version }}.zip .
+
       # restore your private key from the secret
       - name: Restore extension.pem
         run: |
@@ -101,11 +107,20 @@ jobs:
             // Strip the "{?name,label}" suffix
             core.setOutput('upload_url', uploadUrl.split('{')[0]);
 
+      # Upload the ZIP to the release
+      - name: Upload ZIP asset
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.release.outputs.upload_url }}
+          asset_path: ./extension-${{ steps.get_version.outputs.version }}.zip
+          asset_name: extension-${{ steps.get_version.outputs.version }}.zip
+          asset_content_type: application/zip
+
       # 10. Upload the CRX to the release
       - name: Upload CRX asset
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.release.outputs.upload_url }}
           asset_path: ./extension-${{ steps.get_version.outputs.version }}.crx
-          asset_name: llm_plugin.crx
+          asset_name: extension-${{ steps.get_version.outputs.version }}.crx
           asset_content_type: application/x-chrome-extension
