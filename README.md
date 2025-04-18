@@ -1,59 +1,17 @@
-# LlmPlugin
+# LLM Chrome plugin
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 19.2.6.
+Latest release at: https://github.com/dylandhall/llm-plugin/releases
 
-## Development server
+Just download the crx file and add it as an extension in Chrome.
 
-To start a local development server, run:
+## What it is
 
-```bash
-ng serve
-```
+This is designed to work with ChatGpt compatible APIs, including a local LM Studio or llama.cpp server.
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+Allows you to process webpages with configurable, custom prompts, and follow up with chat to ask questions about the page. Data is persisted so you can have longer chats asking questions in detail about sites.
 
-## Code scaffolding
+I had forked a different repo and tried to expand it with an LLM and it was horrific, so I started from scratch with this one, and it's hand coded and works a lot better. I hope it's helpful.
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+Use Ctrl-B to toggle the chat input. I have plans to make it a sidebar app and allow follow on chat adding info from more websites. If you highlight text, it will use that instead of the entire page.
 
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+![image](https://github.com/user-attachments/assets/d66e56c7-1199-4900-b70c-ccad0630fb2a)
