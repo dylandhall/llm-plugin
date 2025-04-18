@@ -107,16 +107,6 @@ export class ActionsComponent implements OnInit {
     ).subscribe(() => this.scrollToBottom());
 
     this.backgroundService.requestState();
-
-    // // unsure if needed, but in case the background isn't ready when i first request the state
-    // timer(100).pipe(
-    //   startWith(0),
-    //   takeUntil(this.messages$.pipe(skip(1), takeUntilDestroyed(), take(1))),
-    //   takeUntilDestroyed(),
-    // ).subscribe(() => {
-    //   this.backgroundService.requestState();
-    // });
-
   }
 
   ngOnInit(): void {
@@ -178,9 +168,7 @@ export class ActionsComponent implements OnInit {
     }
   }
 
-  // Helper method to scroll to the bottom
   private scrollToBottom(): void {
-    console.log('scrolling');
     try {
       const element = this.messagesContainer?.nativeElement;
       if (!element) return;

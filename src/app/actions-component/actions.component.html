@@ -31,7 +31,7 @@
       <button mat-stroked-button [disabled]="!canClear()" (click)="clearChat()">Clear</button>
       <button mat-stroked-button [disabled]="!canChat()" (click)="openChat()">Chat</button>
       @for (customPrompt of customPrompts(); track customPrompt.name) {
-        <button mat-stroked-button (click)="send(customPrompt.prompt)">{{customPrompt.name}}</button>
+        <button mat-stroked-button (click)="send(customPrompt.name)">{{customPrompt.name}}</button>
       }
     </div>
   }
