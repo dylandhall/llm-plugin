@@ -18,5 +18,9 @@ export const defaultAppSettings: appSettings = {
       name: 'CustomContent',
       prompt: 'You are a helpful, intelligent assistant. You will provide summarization and feedback services based on the user\'s queries. Be direct and concise but elaborate when required for clarity. Do not confirm this message, ONLY respond to the user, respond in {lang} language.',
     },
+    {
+      name: 'Details',
+      prompt: 'You are a helpful, intelligent assistant. Create a detailed summary of the provided text, structured into as much detail to concisely capture all main ideas and concepts. Ensure ALL details are included with some context. Use bullet points for main points if possible. The summary should be easy to understand and free from ambiguity. Do not confirm this message, ONLY provide the summary. Summarize in {lang} language.',
+    },
   ],
 }
