@@ -4,6 +4,7 @@ export const defaultAppSettings: appSettings = {
   baseUrl: 'http://localhost:1234/v1/chat/completions',
   model: 'google_gemma-3-12b-it',
   lang: 'English',
+  maxTokens: -1,
   prompts: [
     {
       name: 'Summarise',

@@ -52,6 +52,7 @@ export class OptionsComponent implements OnInit {
     baseUrl: ['', Validators.required],
     model: ['', Validators.required],
     lang: ['', Validators.required],
+    maxTokens: [-1, Validators.required],
     token: [],
     prompts: this.formBuilder.array([])
   });
@@ -67,12 +68,7 @@ export class OptionsComponent implements OnInit {
   async loadSettings() {
     const settings = await getSettings();
 
-    this.settingsForm.patchValue({
-      baseUrl: settings.baseUrl,
-      model: settings.model,
-      lang: settings.lang,
-      token: settings.token,
-    });
+    this.patchSettings(settings);
 
     while (this.promptsArray.length) {
       this.promptsArray.removeAt(0);
@@ -110,12 +106,7 @@ export class OptionsComponent implements OnInit {
 
 
   resetToDefaults() {
-    this.settingsForm.patchValue({
-      baseUrl: defaultAppSettings.baseUrl,
-      model: defaultAppSettings.model,
-      lang: defaultAppSettings.lang,
-      token: defaultAppSettings.token,
-    });
+    this.patchSettings(defaultAppSettings);
 
     // Clear existing prompts
     while (this.promptsArray.length) {
@@ -130,6 +121,16 @@ export class OptionsComponent implements OnInit {
           prompt: [prompt.prompt, Validators.required]
         })
       );
+    });
+  }
+
+  private patchSettings(appSettings: appSettings): void {
+    this.settingsForm.patchValue({
+      baseUrl: appSettings.baseUrl,
+      model: appSettings.model,
+      lang: appSettings.lang,
+      maxTokens: appSettings.maxTokens ?? -1,
+      token: appSettings.token,
     });
   }
 }

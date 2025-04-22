@@ -288,7 +288,7 @@ async function hitApi(settings: appSettings, messages: ApiMessage[], isNewPrimar
       model: settings.model,
       messages: messages,
       temperature: 0.3,
-      max_tokens: -1,
+      max_tokens: settings.maxTokens ?? -1,
       stream: true,
     }),
   });

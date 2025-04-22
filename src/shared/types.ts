@@ -9,5 +9,6 @@ export interface appSettings {
   token?: string;
   model: string;
   lang: string;
+  maxTokens?: number;
   prompts: prompt[];
 }
