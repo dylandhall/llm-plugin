@@ -14,4 +14,10 @@ I had forked a different repo and tried to expand it with an LLM and it was horr
 
 Use Ctrl-B to toggle the chat input. I have plans to make it a sidebar app and allow follow on chat adding info from more websites. If you highlight text, it will use that instead of the entire page.
 
+### Plugin
+
 ![image](https://github.com/user-attachments/assets/d66e56c7-1199-4900-b70c-ccad0630fb2a)
+
+### Settings
+
+![image](https://github.com/user-attachments/assets/1cee7498-0f2c-47d8-ae68-a6dddd9963e2)
