@@ -279,19 +279,28 @@ async function hitApi(settings: appSettings, messages: ApiMessage[], isNewPrimar
         ]
   }));
 
-  const response = await fetch(settings.baseUrl, {
-    method: "POST",
-    headers: settings.token?.length ?? 0 > 0
-      ? { "Content-Type": "application/json", "Authorization": `Bearer ${settings.token}` }
-      : { "Content-Type": "application/json", },
-    body: JSON.stringify({
-      model: settings.model,
-      messages: messages,
-      temperature: 0.3,
-      max_tokens: settings.maxTokens ?? -1,
-      stream: true,
-    }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(settings.baseUrl, {
+      method: "POST",
+      mode: 'cors',
+      headers: settings.token?.length ?? 0 > 0
+        ? { "Content-Type": "application/json", "Authorization": `Bearer ${settings.token}` }
+        : { "Content-Type": "application/json", },
+      body: JSON.stringify({
+        model: settings.model,
+        messages: messages,
+        temperature: 0.3,
+        max_tokens: settings.maxTokens ?? -1,
+        stream: true,
+      }),
+    });
+  } catch (error) {
+    console.error('Failed to contact LLM service:', error);
+    safeSendMessage({ type: PopupMessageType.Error, payload: "Unable to reach the LLM service. Check that it is running and that the browser has permission to access it." });
+    updateFromCurrent(s => ({state: PluginState.Ready, apiMessages: s.apiMessages?.slice(-1) ?? [], chatMessages: s.chatMessages?.filter(c => c.state != ChatMessageState.Streaming) ?? []}));
+    throw error;
+  }
 
   if (!response.ok) {
     const errorBody = await response.text();

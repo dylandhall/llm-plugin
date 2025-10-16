@@ -1,13 +1,25 @@
 {
   "manifest_version": 3,
   "name": "LLM Summary Chat",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Summarises or explains web pages and selected text using a local LLM.",
   "permissions": [
     "activeTab",
     "scripting",
     "storage",
     "tabs"
+  ],
+  "host_permissions": [
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "http://[::1]/*",
+    "https://localhost/*",
+    "https://127.0.0.1/*",
+    "https://[::1]/*"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
   ],
   "background": {
     "service_worker": "service-worker.js",

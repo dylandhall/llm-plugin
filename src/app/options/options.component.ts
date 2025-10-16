@@ -24,6 +24,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { defaultAppSettings } from '../../shared/defaults';
 import { getSettings, saveSettings } from '../../shared/settings';
 import { appSettings } from '../../shared/types';
+import { ensureOriginPermission } from '../../shared/permissions';
 import { MatCardModule } from '@angular/material/card';
 import { MatDividerModule } from '@angular/material/divider';
 
@@ -100,6 +101,11 @@ export class OptionsComponent implements OnInit {
   async send() {
     if (this.settingsForm.valid) {
       const settings: appSettings = this.settingsForm.value;
+      const hasPermission = await ensureOriginPermission(settings.baseUrl);
+      if (!hasPermission) {
+        alert('Unable to save settings because the extension does not have permission to access the configured host.');
+        return;
+      }
       await saveSettings(settings);
     }
   }
