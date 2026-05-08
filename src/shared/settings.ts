@@ -13,7 +13,7 @@ export async function saveSettings(settings: appSettings): Promise<void> {
 export async function getSettings(): Promise<appSettings> {
   try {
     const result = await chrome.storage.sync.get([STORAGE_KEY]);
-    return result[STORAGE_KEY] ?? defaultAppSettings;
+    return (result[STORAGE_KEY] as appSettings) ?? defaultAppSettings;
   } catch (e) {
     console.error('Error getting settings: ', 'storage key: ', STORAGE_KEY, 'last chrome error: ', chrome.runtime.lastError, 'exception: ', e);
     return defaultAppSettings;
